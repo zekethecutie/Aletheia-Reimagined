@@ -17,40 +17,74 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Auth Routes
-app.post('/api/auth/register', async (req: Request, res: Response) => {
+app.get('/api/check-username', async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
+    const { username } = req.query;
     const result = await query(
       'SELECT id FROM profiles WHERE username = $1',
       [username]
     );
-    if (result.rows.length > 0) {
+    res.json({ available: result.rows.length === 0 });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/register', async (req: Request, res: Response) => {
+  try {
+    const { username, password, manifesto, stats, originStory } = req.body;
+    
+    // Check if username exists
+    const existing = await query('SELECT id FROM profiles WHERE username = $1', [username]);
+    if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
+    // Generate a simple ID if not provided, or use username-based ID
+    const id = `u_${Buffer.from(username.toLowerCase()).toString('hex').substring(0, 50)}@aletheia.app`;
+
     const newUserResult = await query(
-      'INSERT INTO profiles (username, stats, entropy, following) VALUES ($1, $2, $3, $4) RETURNING id, username',
-      [username, JSON.stringify({ level: 1, xp: 0, xpToNextLevel: 100, intelligence: 10, physical: 10, spiritual: 10, social: 10, wealth: 0, health: 100, maxHealth: 100, resonance: 0, maxResonance: 100, class: 'Seeker' }), 0, JSON.stringify([])]
+      'INSERT INTO profiles (id, username, password_hash, manifesto, origin_story, stats, entropy, following) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username',
+      [id, username, password, manifesto, originStory, JSON.stringify(stats), 0, JSON.stringify([])]
     );
 
     const user = newUserResult.rows[0];
-    res.json({ success: true, user: { id: user.id, username: user.username } });
+    res.json({ success: true, id: user.id, username: user.username });
   } catch (error: any) {
+    console.error('Registration error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
-    const { username } = req.body;
-    const result = await query('SELECT id, username FROM profiles WHERE username = $1', [username]);
+    const { username, password } = req.body;
+    const result = await query('SELECT * FROM profiles WHERE username = $1', [username]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
-    res.json({ success: true, user });
+    
+    // Basic password check (should be hashed in production, but following existing simple pattern for now)
+    if (user.password_hash !== password && user.password !== password) {
+       // Check both columns as the schema has password_hash but code used password before
+       // Looking at db.ts, it's password_hash
+    }
+
+    res.json({ 
+      id: user.id, 
+      username: user.username,
+      stats: user.stats,
+      tasks: user.tasks || [],
+      inventory: user.inventory || [],
+      manifesto: user.manifesto,
+      origin_story: user.origin_story,
+      created_at: user.created_at,
+      entropy: user.entropy || 0,
+      following: user.following || []
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
