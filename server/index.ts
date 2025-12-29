@@ -396,16 +396,33 @@ app.post('/api/notifications/:id/read', async (req: Request, res: Response) => {
   }
 });
 
-// Mirror Scenario
+// Mirror Scenario - Using Gemini
 app.post('/api/ai/mirror/scenario', async (req: Request, res: Response) => {
   try {
     const { stats } = req.body;
     if (!stats) {
       return res.status(400).json({ error: 'Missing stats' });
     }
-    const system = `You are the Mirror of Aletheia. Generate a moral dilemma for a ${stats.class || 'Seeker'} level ${stats.level || 1}. 
-    Return JSON ONLY: { "situation": "string", "choiceA": "string", "choiceB": "string", "testedStat": "string" }`;
-    const result = await askDeepSeek(system, "You are the Mirror.");
+    
+    // Use Gemini via OpenRouter
+    const geminiApiKey = process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || "dummy";
+    const geminiBaseUrl = process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+    
+    const openrouter = new OpenAI({
+      baseURL: geminiBaseUrl,
+      apiKey: geminiApiKey,
+    });
+    
+    const response = await openrouter.chat.completions.create({
+      model: "google/gemini-2.0-flash-exp",
+      messages: [
+        { role: "system", content: "You are the Mirror of Aletheia. Generate a moral dilemma for the user." },
+        { role: "user", content: `Generate a moral dilemma for a ${stats.class || 'Seeker'} level ${stats.level || 1}. Return JSON ONLY: { "situation": "string", "choiceA": "string", "choiceB": "string", "testedStat": "string" }` }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const result = response.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(result);
     if (parsed && parsed.situation) {
       res.json(parsed);
@@ -424,16 +441,26 @@ app.post('/api/ai/mirror/evaluate', async (req: Request, res: Response) => {
     if (!situation || !choice) {
       return res.status(400).json({ error: 'Missing situation or choice' });
     }
-    const system = `Analyze this choice: "${choice}" in response to: "${situation}".
-    The user is a ${stats?.class || 'Seeker'} level ${stats?.level || 1}.
-    Evaluate the outcome and reward. Reward can be STAT_ONLY or ARTIFACT.
-    Return JSON ONLY: { 
-      "outcome": "string", 
-      "rewardType": "STAT_ONLY" | "ARTIFACT",
-      "statChange": { "intelligence": number, "physical": number, "spiritual": number, "social": number, "wealth": number },
-      "reward": { "name": "string", "description": "string", "icon": "string", "rarity": "COMMON" | "RARE" | "LEGENDARY" | "MYTHIC", "effect": "string" }
-    }`;
-    const result = await askDeepSeek(system, "You are the Arbiter of the Mirror.");
+    
+    // Use Gemini via OpenRouter
+    const geminiApiKey = process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || "dummy";
+    const geminiBaseUrl = process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+    
+    const openrouter = new OpenAI({
+      baseURL: geminiBaseUrl,
+      apiKey: geminiApiKey,
+    });
+    
+    const response = await openrouter.chat.completions.create({
+      model: "google/gemini-2.0-flash-exp",
+      messages: [
+        { role: "system", content: "You are the Arbiter of the Mirror. Evaluate choices and assign rewards." },
+        { role: "user", content: `Analyze this choice: "${choice}" in response to: "${situation}". The user is a ${stats?.class || 'Seeker'} level ${stats?.level || 1}. Evaluate the outcome and reward. Return JSON ONLY: { "outcome": "string", "rewardType": "STAT_ONLY" | "ARTIFACT", "statChange": { "intelligence": number, "physical": number, "spiritual": number, "social": number, "wealth": number }, "reward": { "name": "string", "description": "string", "icon": "string", "rarity": "COMMON" | "RARE" | "LEGENDARY" | "MYTHIC", "effect": "string" } }` }
+      ],
+      response_format: { type: "json_object" }
+    });
+    
+    const result = response.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(result);
     if (parsed && parsed.outcome) {
       res.json(parsed);

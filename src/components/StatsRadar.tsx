@@ -6,6 +6,8 @@ interface StatsRadarProps {
 }
 
 export const StatsRadar: React.FC<StatsRadarProps> = ({ stats }) => {
+  if (!stats) return <div>Loading stats...</div>;
+  
   const size = 240;
   const center = size / 2;
   const maxValue = 100;
@@ -14,8 +16,8 @@ export const StatsRadar: React.FC<StatsRadarProps> = ({ stats }) => {
     { name: 'STR', value: stats.physical, angle: 0 },
     { name: 'INT', value: stats.intelligence, angle: 72 },
     { name: 'AGI', value: stats.spiritual, angle: 144 },
-    { name: 'LUK', value: stats.social, angle: 216 },
-    { name: 'WIS', value: stats.wealth, angle: 288 }
+    { name: 'SOC', value: stats.social, angle: 216 },
+    { name: 'WTH', value: stats.wealth, angle: 288 }
   ];
 
   const getPoint = (angle: number, distance: number) => {

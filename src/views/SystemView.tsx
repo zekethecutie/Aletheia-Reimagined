@@ -360,7 +360,7 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
               </div>
           )}
 
-          {tab === 'STATUS' && (
+          {tab === 'STATUS' && user.stats && (
               <div className="animate-fade-in space-y-6">
                   <StatsRadar stats={user.stats} />
                   <div className="grid grid-cols-2 gap-3">
@@ -386,7 +386,7 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                                 <div className="w-1 h-1 bg-emerald-400 rounded-full"></div>
                                 Wealth
                             </div>
-                            <div className="text-2xl font-display font-black text-white">{user.stats.wealth || 0}</div>
+                            <div className="text-2xl font-display font-black text-white">{user.stats?.wealth || 0}</div>
                         </div>
                         <div className="w-6 h-6 opacity-20 group-hover:opacity-100 transition-opacity text-emerald-400">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22m5-18H8a3 3 0 000 6h9a3 3 0 010 6H7" /></svg>
@@ -437,7 +437,7 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                                 const response = await fetch('/api/ai/quest-reward', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ title, system })
+                                  body: JSON.stringify({ title, system, userId: user.id })
                                 });
                                 const data = await response.json();
                                 if (data.success) {
