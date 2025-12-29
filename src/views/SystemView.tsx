@@ -365,10 +365,10 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                   <StatsRadar stats={user.stats} />
                   <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: 'Intelligence', val: user.stats.intelligence, color: 'bg-blue-400' },
-                        { label: 'Physical', val: user.stats.physical, color: 'bg-red-500' },
-                        { label: 'Spiritual', val: user.stats.spiritual, color: 'bg-purple-400' },
-                        { label: 'Social', val: user.stats.social, color: 'bg-amber-400' }
+                        { label: 'Intelligence', val: user.stats?.intelligence || 0, color: 'bg-blue-400' },
+                        { label: 'Physical', val: user.stats?.physical || 0, color: 'bg-red-500' },
+                        { label: 'Spiritual', val: user.stats?.spiritual || 0, color: 'bg-purple-400' },
+                        { label: 'Social', val: user.stats?.social || 0, color: 'bg-amber-400' }
                       ].map(s => (
                         <div key={s.label} className="glass-card p-4 rounded-xl border-white/5 flex justify-between items-center group hover:border-gold/30 transition-all">
                           <div>
@@ -409,7 +409,7 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
 
           {tab === 'QUESTS' && (
               <div className="animate-fade-in space-y-6">
-                  <div className="mb-6">
+                  <div className="flex gap-4 mb-6">
                       <button 
                         onClick={handleGenerateQuests} 
                         disabled={generatingQuest} 
@@ -418,7 +418,42 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                         {generatingQuest ? <div className="w-2 h-2 border-2 border-black border-t-transparent animate-spin rounded-full"></div> : null}
                         {generatingQuest ? 'Manifesting Directives...' : '✦ Seek New Directives'}
                       </button>
-                      <p className="text-slate-500 text-[9px] uppercase tracking-widest mt-3">The AI will generate directives tailored to your evolution</p>
+                      <p className="text-slate-500 text-[9px] uppercase tracking-widest">The AI will generate directives tailored to your evolution</p>
+                  </div>
+
+                  <div className="glass-card p-6 rounded-2xl border-white/5 space-y-3 mb-6">
+                      <h3 className="text-sm font-black text-white uppercase tracking-wide mb-4">OR Create Manually</h3>
+                      <input 
+                        placeholder="Quest objective..."
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                            const title = (e.target as HTMLInputElement).value;
+                            (async () => {
+                              try {
+                                const userStats = user.stats;
+                                const system = `You are the Quest Arbiter. A user wants to do: "${title}". 
+                                Evaluate its difficulty and assign an XP reward and Stat rewards for a ${userStats?.class || 'Seeker'} level ${userStats?.level || 1}.
+                                Return JSON ONLY: { "difficulty": "E-S", "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number } }`;
+                                const response = await fetch('/api/ai/quest-reward', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ title, system })
+                                });
+                                const data = await response.json();
+                                if (data.success) {
+                                  const questData = await apiClient.getQuests(user.id);
+                                  setQuests(questData);
+                                  (e.target as HTMLInputElement).value = '';
+                                }
+                              } catch (err) {
+                                console.error('Failed to create quest:', err);
+                              }
+                            })();
+                          }
+                        }}
+                        className="w-full bg-slate-900 border border-white/10 p-3 text-white text-sm outline-none focus:border-gold transition-all uppercase tracking-wider font-bold"
+                      />
+                      <p className="text-[9px] text-slate-500">Press Enter to create. AI will auto-assign difficulty and rewards.</p>
                   </div>
 
                   <div>

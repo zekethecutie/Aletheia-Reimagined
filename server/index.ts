@@ -141,6 +141,41 @@ app.post('/api/ai/mysterious-name', async (req: Request, res: Response) => {
   }
 });
 
+// Create Quest with AI-assigned rewards
+app.post('/api/ai/quest-reward', async (req: Request, res: Response) => {
+  try {
+    const { title, system } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: 'Missing title' });
+    }
+
+    const result = await askDeepSeek(system, "You are the Quest Arbiter.");
+    let rewards;
+    try {
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      rewards = JSON.parse(jsonMatch ? jsonMatch[0] : result);
+    } catch (e) {
+      console.error('Failed to parse rewards:', result);
+      rewards = { difficulty: 'C', xp_reward: 100, stat_reward: {} };
+    }
+
+    // Extract userId from system message context (passed separately)
+    const userIdMatch = req.body.userId;
+    if (userIdMatch) {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+      await query(
+        'INSERT INTO quests (user_id, text, difficulty, xp_reward, stat_reward, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [userIdMatch, title, rewards.difficulty || 'C', rewards.xp_reward || 100, JSON.stringify(rewards.stat_reward || {}), expiresAt]
+      );
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Quest reward error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // AI Quest Generation
 app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
   try {
@@ -365,18 +400,30 @@ app.post('/api/notifications/:id/read', async (req: Request, res: Response) => {
 app.post('/api/ai/mirror/scenario', async (req: Request, res: Response) => {
   try {
     const { stats } = req.body;
-    const system = `You are the Mirror of Aletheia. Generate a moral dilemma for a ${stats.class} level ${stats.level}. 
+    if (!stats) {
+      return res.status(400).json({ error: 'Missing stats' });
+    }
+    const system = `You are the Mirror of Aletheia. Generate a moral dilemma for a ${stats.class || 'Seeker'} level ${stats.level || 1}. 
     Return JSON ONLY: { "situation": "string", "choiceA": "string", "choiceB": "string", "testedStat": "string" }`;
     const result = await askDeepSeek(system, "You are the Mirror.");
-    res.json(JSON.parse(result));
+    const parsed = JSON.parse(result);
+    if (parsed && parsed.situation) {
+      res.json(parsed);
+    } else {
+      res.json({ situation: "A fork in the road.", choiceA: "Left", choiceB: "Right", context: "Void", testedStat: "spiritual" });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Mirror scenario error:', error);
+    res.json({ situation: "A fork in the road.", choiceA: "Left", choiceB: "Right", context: "Void", testedStat: "spiritual" });
   }
 });
 
 app.post('/api/ai/mirror/evaluate', async (req: Request, res: Response) => {
   try {
     const { situation, choice, stats } = req.body;
+    if (!situation || !choice) {
+      return res.status(400).json({ error: 'Missing situation or choice' });
+    }
     const system = `Analyze this choice: "${choice}" in response to: "${situation}".
     The user is a ${stats?.class || 'Seeker'} level ${stats?.level || 1}.
     Evaluate the outcome and reward. Reward can be STAT_ONLY or ARTIFACT.
@@ -387,9 +434,15 @@ app.post('/api/ai/mirror/evaluate', async (req: Request, res: Response) => {
       "reward": { "name": "string", "description": "string", "icon": "string", "rarity": "COMMON" | "RARE" | "LEGENDARY" | "MYTHIC", "effect": "string" }
     }`;
     const result = await askDeepSeek(system, "You are the Arbiter of the Mirror.");
-    res.json(JSON.parse(result));
+    const parsed = JSON.parse(result);
+    if (parsed && parsed.outcome) {
+      res.json(parsed);
+    } else {
+      res.json({ outcome: "Fate ripples.", statChange: { intelligence: 5, physical: 0, spiritual: 0, social: 0, wealth: 0 }, rewardType: 'STAT_ONLY' });
+    }
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Mirror evaluate error:', error);
+    res.json({ outcome: "Fate ripples.", statChange: { intelligence: 5, physical: 0, spiritual: 0, social: 0, wealth: 0 }, rewardType: 'STAT_ONLY' });
   }
 });
 
