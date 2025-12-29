@@ -42,6 +42,10 @@ export const MirrorView: React.FC<MirrorViewProps> = ({ user, onUpdateUser }) =>
       try {
         const result = await apiClient.evaluateMirrorChoice(scenario.situation, choice === 'A' ? scenario.choiceA : scenario.choiceB, user.stats);
         
+        if (!result || !result.outcome) {
+          throw new Error("The Mirror's verdict remains unclear.");
+        }
+
         // If there's a reward, generate an image for it
         if (result.reward && !result.reward.imageUrl) {
           try {
@@ -58,7 +62,9 @@ export const MirrorView: React.FC<MirrorViewProps> = ({ user, onUpdateUser }) =>
         const newStats = { ...user.stats };
         if (result.statChange) {
            Object.entries(result.statChange).forEach(([k, v]) => {
-              if (k in newStats) (newStats as any)[k] += v;
+              if (k in newStats && typeof (newStats as any)[k] === 'number') {
+                (newStats as any)[k] += v;
+              }
            });
         }
         
@@ -81,6 +87,8 @@ export const MirrorView: React.FC<MirrorViewProps> = ({ user, onUpdateUser }) =>
         onUpdateUser({ ...user, stats: newStats, inventory: newInventory });
       } catch (error) {
         console.error('Failed to evaluate choice:', error);
+        setError(error instanceof Error ? error.message : "The Mirror failed. Try again later.");
+        setGameMode('IDLE');
       } finally {
         setLoading(false);
       }

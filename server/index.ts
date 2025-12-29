@@ -146,13 +146,17 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
   try {
     const { userId, stats, goals } = req.body;
     
+    if (!userId || !stats) {
+      return res.status(400).json({ error: 'Missing userId or stats' });
+    }
+    
     const userQuests = await query('SELECT * FROM quests WHERE user_id = $1 AND completed = false', [userId]);
     if (userQuests.rows.length >= 5) {
       return res.json({ success: true, message: "Your spirit is already laden with trials. Complete them first." });
     }
 
     const system = `You are the Eye of Aletheia, a supreme self-development architecture. 
-    Construct 3 real-world sacred trials for a ${stats.class} level ${stats.level}.
+    Construct 3 real-world sacred trials for a ${stats?.class || 'Seeker'} level ${stats?.level || 1}.
     GOALS: ${JSON.stringify(goals || [])}
     
     CRITICAL PROTOCOLS:
@@ -288,40 +292,6 @@ app.post('/api/quests/:id/complete', async (req: Request, res: Response) => {
   }
 });
 
-// AI Quest Creation (Manual + AI assistance)
-app.post('/api/quests/create', async (req: Request, res: Response) => {
-  try {
-    const { user_id, text, description, difficulty } = req.body;
-    if (!user_id || !text || !difficulty) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const userResult = await query('SELECT stats FROM profiles WHERE id = $1', [user_id]);
-    const stats = userResult.rows[0].stats;
-
-    const system = `You are the Quest Arbiter. A user wants to do: "${text}". 
-    Evaluate its difficulty and assign an XP reward and Stat rewards for a ${stats.class} level ${stats.level}.
-    Return JSON ONLY: { "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number } }`;
-    
-    const result = await askDeepSeek(system, "You are the Quest Arbiter.");
-    let rewards;
-    try {
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      rewards = JSON.parse(jsonMatch ? jsonMatch[0] : result);
-    } catch (e) {
-      console.error('Failed to parse rewards:', result);
-      rewards = { xp_reward: 100, stat_reward: {} };
-    }
-
-    await query(
-      'INSERT INTO quests (user_id, text, description, difficulty, xp_reward, stat_reward) VALUES ($1, $2, $3, $4, $5, $6)',
-      [user_id, text, description || '', difficulty, rewards.xp_reward || 100, JSON.stringify(rewards.stat_reward || {})]
-    );
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Habits
 app.post('/api/habits', async (req: Request, res: Response) => {

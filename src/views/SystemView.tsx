@@ -50,10 +50,6 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
   const [habits, setHabits] = useState<any[]>([]);
   const [trackingHabit, setTrackingHabit] = useState<number | null>(null);
   const [quests, setQuests] = useState<any[]>([]);
-  const [questTitle, setQuestTitle] = useState('');
-  const [questDesc, setQuestDesc] = useState('');
-  const [questDifficulty, setQuestDifficulty] = useState<'E' | 'D' | 'C' | 'B' | 'A' | 'S'>('C');
-  const [questXP, setQuestXP] = useState(100);
   const [generatingQuest, setGeneratingQuest] = useState(false);
 
   useEffect(() => {
@@ -121,35 +117,6 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
     finally { setTrackingHabit(null); }
   };
 
-  const handleCreateQuest = async () => {
-    if (!questTitle.trim()) {
-      alert("Quest must have a directive.");
-      return;
-    }
-    try {
-      const response = await fetch('/api/quests/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          text: questTitle,
-          description: questDesc,
-          difficulty: questDifficulty,
-          xp_reward: questXP
-        })
-      });
-      if (!response.ok) throw new Error('Failed to create quest');
-      const data = await apiClient.getQuests(user.id);
-      setQuests(data);
-      setQuestTitle('');
-      setQuestDesc('');
-      setQuestDifficulty('C');
-      setQuestXP(100);
-    } catch (error) {
-      console.error('Failed to create quest:', error);
-      alert("Failed to manifest directive. Try again.");
-    }
-  };
 
   const handleGenerateQuests = async () => {
     if (generatingQuest) return;
@@ -442,52 +409,16 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
 
           {tab === 'QUESTS' && (
               <div className="animate-fade-in space-y-6">
-                  <div className="mb-6 flex gap-4">
+                  <div className="mb-6">
                       <button 
                         onClick={handleGenerateQuests} 
                         disabled={generatingQuest} 
-                        className="text-[10px] bg-gold/10 text-gold border border-gold/20 px-4 py-2 rounded-full uppercase font-black hover:bg-gold/20 transition-all disabled:opacity-50 flex items-center gap-2"
+                        className="text-[10px] bg-gold text-black border border-gold px-6 py-3 rounded-lg uppercase font-black hover:bg-gold/80 transition-all disabled:opacity-50 flex items-center gap-2"
                       >
-                        {generatingQuest ? <div className="w-2 h-2 border-2 border-gold border-t-transparent animate-spin rounded-full"></div> : null}
-                        {generatingQuest ? 'Manifesting...' : 'Seek New Directives'}
+                        {generatingQuest ? <div className="w-2 h-2 border-2 border-black border-t-transparent animate-spin rounded-full"></div> : null}
+                        {generatingQuest ? 'Manifesting Directives...' : '✦ Seek New Directives'}
                       </button>
-                      <h2 className="text-2xl font-display font-black text-white uppercase tracking-widest">OR Forge Manually</h2>
-                  </div>
-                  <div className="glass-card p-6 rounded-2xl border-white/5 space-y-3 mb-6">
-                      <input 
-                        value={questTitle}
-                        onChange={e => setQuestTitle(e.target.value)}
-                        placeholder="Quest objective..."
-                        className="w-full bg-slate-900 border border-white/10 p-3 text-white text-sm outline-none focus:border-gold transition-all uppercase tracking-wider font-bold"
-                      />
-                      <textarea
-                        value={questDesc}
-                        onChange={e => setQuestDesc(e.target.value)}
-                        placeholder="Description (optional)..."
-                        className="w-full bg-slate-900 border border-white/10 p-3 text-white text-sm outline-none focus:border-gold transition-all h-20"
-                      />
-                      <div className="grid grid-cols-3 gap-2">
-                        <select
-                          value={questDifficulty}
-                          onChange={e => setQuestDifficulty(e.target.value as any)}
-                          className="bg-slate-900 border border-white/10 p-2 text-white text-sm outline-none focus:border-gold transition-all uppercase font-bold"
-                        >
-                          {['E', 'D', 'C', 'B', 'A', 'S'].map(d => <option key={d} value={d}>{d} Tier</option>)}
-                        </select>
-                        <input
-                          type="number"
-                          value={questXP}
-                          onChange={e => setQuestXP(Math.max(10, parseInt(e.target.value) || 100))}
-                          placeholder="XP Reward"
-                          className="bg-slate-900 border border-white/10 p-2 text-white text-sm outline-none focus:border-gold transition-all"
-                        />
-                        <button
-                          onClick={handleCreateQuest}
-                          className="bg-gold text-black font-black uppercase text-xs tracking-widest hover:bg-gold/80 transition-colors"
-                        >
-                          Create
-                        </button>
-                      </div>
+                      <p className="text-slate-500 text-[9px] uppercase tracking-widest mt-3">The AI will generate directives tailored to your evolution</p>
                   </div>
 
                   <div>
