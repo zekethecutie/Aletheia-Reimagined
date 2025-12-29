@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { query, initializeDatabase } from './db';
 import { verifyPassword, hashPassword } from './auth';
-import { askDeepSeek, askDeepSeekText, analyzeIdentityDeepSeek, getCouncilFeedbackDeepSeek, getDailyWisdomDeepSeek } from './deepseekService';
+import { askGemini, askGeminiText, analyzeIdentityGemini, getCouncilFeedbackGemini, getDailyWisdomGemini } from './geminiService';
 
 dotenv.config();
 
@@ -134,7 +134,7 @@ app.post('/api/profile/:id/update', async (req: Request, res: Response) => {
 // AI Proxy - Mysterious Name
 app.post('/api/ai/mysterious-name', async (req: Request, res: Response) => {
   try {
-    const name = await askDeepSeekText("Generate a single mysterious RPG-style name (e.g., Kaelen, Vyr, Sylas). Just the name.", "You are the Naming Oracle.");
+    const name = await askGeminiText("Generate a single mysterious RPG-style name (e.g., Kaelen, Vyr, Sylas). Just the name.", "You are the Naming Oracle.");
     res.json({ name: name.trim().split('\n')[0].replace(/[^a-zA-Z]/g, '') });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -149,7 +149,7 @@ app.post('/api/ai/quest-reward', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing title' });
     }
 
-    const result = await askDeepSeek(system, "You are the Quest Arbiter.");
+    const result = await askGemini(system, "You are the Quest Arbiter.");
     let rewards;
     try {
       const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -200,7 +200,7 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
     3. DIFFICULTY: E (Easy) to S (Supreme).
     4. Return JSON ONLY: { "quests": [{ "text": "string", "difficulty": "E-S", "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number }, "duration_hours": number }] }`;
     
-    const result = await askDeepSeek(system, "You are the Quest Weaver.");
+    const result = await askGemini(system, "You are the Quest Weaver.");
     console.log('Quest Generation Result:', result);
     let generatedQuests;
     try {
@@ -236,7 +236,7 @@ app.post('/api/achievements/calculate', async (req: Request, res: Response) => {
     Evaluate its impact on a ${stats.class} at level ${stats.level}.
     Return JSON ONLY: { "xpGained": number, "statsIncreased": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number }, "systemMessage": "string" }`;
     
-    const result = await askDeepSeek(system, "You are the Chronicler.");
+    const result = await askGemini(system, "You are the Chronicler.");
     const data = JSON.parse(result);
     await query('INSERT INTO achievements (user_id, title, description, icon) VALUES ($1, $2, $3, $4)', 
       [userId, "Great Feat Logged", text, "🏆"]);
@@ -361,7 +361,7 @@ app.post('/api/habits/track', async (req: Request, res: Response) => {
     const userStats = userResult.rows[0].stats;
 
     const habit = habitResult.rows[0];
-    const verdict = await getCouncilFeedbackDeepSeek(habit.name, action, userStats);
+    const verdict = await getCouncilFeedbackGemini(habit.name, action, userStats);
 
     const newStreak = (habit.streak || 0) + 1;
     await query('UPDATE habits SET streak = $1 WHERE id = $2', [newStreak, habit_id]);
@@ -478,7 +478,7 @@ app.post('/api/ai/advisor', async (req: Request, res: Response) => {
   try {
     const { advisor, message, userId } = req.body;
     const system = `You are the ${advisor} of Aletheia. Provide guidance to the user. Be concise and maintain your character.`;
-    const text = await askDeepSeekText(message, system);
+    const text = await askGeminiText(message, system);
     res.json({ text });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -511,7 +511,7 @@ app.post('/api/profile/:id/follow', async (req: Request, res: Response) => {
 app.post('/api/ai/analyze-identity', async (req: Request, res: Response) => {
   try {
     const { manifesto } = req.body;
-    const result = await analyzeIdentityDeepSeek(manifesto);
+    const result = await analyzeIdentityGemini(manifesto);
     res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -521,7 +521,7 @@ app.post('/api/ai/analyze-identity', async (req: Request, res: Response) => {
 // Daily Wisdom
 app.get('/api/ai/wisdom', async (req: Request, res: Response) => {
   try {
-    const wisdom = await getDailyWisdomDeepSeek();
+    const wisdom = await getDailyWisdomGemini();
     res.json(wisdom);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
