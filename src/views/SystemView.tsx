@@ -261,13 +261,13 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                             <div className="w-32 h-32 glass-card rounded-xl border-white/10 p-2 relative">
                                 <img src={user.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${user.username}&backgroundColor=000000`} className="w-full h-full object-cover rounded-lg" />
                                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black border border-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full whitespace-nowrap">
-                                    LVL {user.stats.level}
+                                    LVL {user.stats?.level || 1}
                                 </div>
                             </div>
                         </div>
                         <div className="absolute bottom-6 left-0 right-0 text-center px-4">
                             <h2 className="text-xl font-display font-black text-white uppercase tracking-tighter mb-1">{user.username}</h2>
-                            <p className="text-gold text-[9px] uppercase font-black tracking-[0.3em] opacity-80">{user.stats.class || "SCHOLAR"}</p>
+                            <p className="text-gold text-[9px] uppercase font-black tracking-[0.3em] opacity-80">{user.stats?.class || "SCHOLAR"}</p>
                         </div>
                     </div>
                 </div>
@@ -277,28 +277,28 @@ export const SystemView: React.FC<{ user: User; onUpdateUser: (u: User) => void;
                 <div>
                     <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest mb-1">
                         <span className="text-slate-500">Health Point</span>
-                        <span className="text-slate-300">{(user.stats.health || 0).toFixed(0)} / {user.stats.maxHealth || 100}</span>
+                        <span className="text-slate-300">{((user.stats?.health || 0) as number).toFixed(0)} / {user.stats?.maxHealth || 100}</span>
                     </div>
                     <div className="h-1.5 bg-slate-900 overflow-hidden">
-                        <div className="h-full bg-red-500/80 transition-all duration-500" style={{ width: `${Math.min(100, ((user.stats.health || 0) / (user.stats.maxHealth || 100)) * 100)}%` }}></div>
+                        <div className="h-full bg-red-500/80 transition-all duration-500" style={{ width: `${Math.min(100, ((user.stats?.health || 0) / (user.stats?.maxHealth || 100)) * 100)}%` }}></div>
                     </div>
                 </div>
                 <div>
                     <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest mb-1">
                         <span className="text-slate-500">Resonance</span>
-                        <span className="text-slate-300">{(user.stats.resonance || 0).toFixed(0)} / {user.stats.maxResonance || 100}</span>
+                        <span className="text-slate-300">{((user.stats?.resonance || 0) as number).toFixed(0)} / {user.stats?.maxResonance || 100}</span>
                     </div>
                     <div className="h-1.5 bg-slate-900 overflow-hidden">
-                        <div className="h-full bg-blue-500/80 transition-all duration-500" style={{ width: `${Math.min(100, ((user.stats.resonance || 0) / (user.stats.maxResonance || 100)) * 100)}%` }}></div>
+                        <div className="h-full bg-blue-500/80 transition-all duration-500" style={{ width: `${Math.min(100, ((user.stats?.resonance || 0) / (user.stats?.maxResonance || 100)) * 100)}%` }}></div>
                     </div>
                 </div>
                 <div>
                     <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest mb-1">
                         <span className="text-slate-500">Experience</span>
-                        <span className="text-slate-300">{user.stats.xp} / {user.stats.xpToNextLevel}</span>
+                        <span className="text-slate-300">{user.stats?.xp || 0} / {user.stats?.xpToNextLevel || 100}</span>
                     </div>
                     <div className="h-1.5 bg-slate-900 overflow-hidden">
-                        <div className="h-full bg-gold/80 transition-all duration-500" style={{ width: `${Math.min(100, (user.stats.xp / user.stats.xpToNextLevel) * 100)}%` }}></div>
+                        <div className="h-full bg-gold/80 transition-all duration-500" style={{ width: `${Math.min(100, ((user.stats?.xp || 0) / (user.stats?.xpToNextLevel || 100)) * 100)}%` }}></div>
                     </div>
                 </div>
             </div>
