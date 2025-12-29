@@ -67,10 +67,11 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 
     const user = result.rows[0];
     
-    // Basic password check (should be hashed in production, but following existing simple pattern for now)
-    if (user.password_hash !== password && user.password !== password) {
-       // Check both columns as the schema has password_hash but code used password before
-       // Looking at db.ts, it's password_hash
+    // Check both password_hash and legacy password columns
+    const storedPassword = user.password_hash || user.password;
+    
+    if (storedPassword !== password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     res.json({ 
