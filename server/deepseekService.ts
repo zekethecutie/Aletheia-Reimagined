@@ -46,6 +46,12 @@ export const analyzeIdentityDeepSeek = async (manifesto: string) => {
   return JSON.parse(result);
 };
 
+export const getDailyWisdomDeepSeek = async () => {
+  const prompt = `Provide a single piece of profound, mystical daily wisdom for a seeker of truth. Return JSON ONLY with: text (string), author (string).`;
+  const result = await askDeepSeek(prompt, "You are the Oracle of Aletheia.");
+  return JSON.parse(result);
+};
+
 export const getCouncilFeedbackDeepSeek = async (habitName: string, action: string, stats: any) => {
   const prompt = `User performed "${action}" for habit "${habitName}". User is a ${stats.class} level ${stats.level}. Provide a council verdict feedback. Return JSON ONLY with: success (boolean), feedback (string), xp (number), stat_reward (object with stats).`;
   const result = await askDeepSeek(prompt, "You are the High Council of Aletheia.");

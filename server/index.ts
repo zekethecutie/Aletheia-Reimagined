@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { query, initializeDatabase } from './db';
 import { verifyPassword, hashPassword } from './auth';
-import { askDeepSeek, askDeepSeekText, analyzeIdentityDeepSeek, getCouncilFeedbackDeepSeek } from './deepseekService';
+import { askDeepSeek, askDeepSeekText, analyzeIdentityDeepSeek, getCouncilFeedbackDeepSeek, getDailyWisdomDeepSeek } from './deepseekService';
 
 dotenv.config();
 
@@ -391,6 +391,16 @@ app.post('/api/ai/analyze-identity', async (req: Request, res: Response) => {
     const { manifesto } = req.body;
     const result = await analyzeIdentityDeepSeek(manifesto);
     res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Daily Wisdom
+app.get('/api/ai/wisdom', async (req: Request, res: Response) => {
+  try {
+    const wisdom = await getDailyWisdomDeepSeek();
+    res.json(wisdom);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
