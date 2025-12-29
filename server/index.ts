@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { query, initializeDatabase } from './db';
+import { verifyPassword, hashPassword } from './auth';
 
 dotenv.config();
 
@@ -14,18 +15,15 @@ initializeDatabase();
 app.use(cors());
 app.use(express.json());
 
-// Placeholder GET for testing
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok' });
-});
-
 // Auth Routes
 app.get('/api/check-username', async (req: Request, res: Response) => {
   try {
     const { username } = req.query;
+    if (!username) return res.status(400).json({ error: 'Username required' });
+    
     const result = await query(
-      'SELECT id FROM profiles WHERE username = $1',
-      [username]
+      'SELECT id FROM profiles WHERE LOWER(username) = LOWER($1)',
+      [username.toString()]
     );
     res.json({ available: result.rows.length === 0 });
   } catch (error: any) {
@@ -37,43 +35,39 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
   try {
     const { username, password, manifesto, stats, originStory } = req.body;
     
-    // Check if username exists
-    const existing = await query('SELECT id FROM profiles WHERE username = $1', [username]);
+    const existing = await query('SELECT id FROM profiles WHERE LOWER(username) = LOWER($1)', [username]);
     if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Designation already claimed.' });
     }
 
-    // Generate a simple ID if not provided, or use username-based ID
     const id = `u_${Buffer.from(username.toLowerCase()).toString('hex').substring(0, 50)}@aletheia.app`;
+    const passwordHash = await hashPassword(password);
 
-    const newUserResult = await query(
-      'INSERT INTO profiles (id, username, password_hash, manifesto, origin_story, stats, entropy, following) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username',
-      [id, username, password, manifesto, originStory, JSON.stringify(stats), 0, JSON.stringify([])]
+    await query(
+      'INSERT INTO profiles (id, username, password_hash, manifesto, origin_story, stats, entropy, following) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [id, username, passwordHash, manifesto, originStory, JSON.stringify(stats), 0, JSON.stringify([])]
     );
 
-    const user = newUserResult.rows[0];
-    res.json({ success: true, id: user.id, username: user.username });
+    res.json({ success: true, id, username });
   } catch (error: any) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Protocol Failed: ' + error.message });
   }
 });
 
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
-    const result = await query('SELECT * FROM profiles WHERE username = $1', [username]);
+    const result = await query('SELECT * FROM profiles WHERE LOWER(username) = LOWER($1)', [username]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
+    const isValid = await verifyPassword(password, user.password_hash || user.password || '');
     
-    // Check both password_hash and legacy password columns
-    const storedPassword = user.password_hash || user.password;
-    
-    if (storedPassword !== password) {
+    if (!isValid && user.password !== password && user.password_hash !== password) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 

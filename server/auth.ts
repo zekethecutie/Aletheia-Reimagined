@@ -15,8 +15,13 @@ export const hashPassword = async (password: string): Promise<string> => {
 
 export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
   return new Promise((resolve, reject) => {
-    if (!hash || !hash.includes('$')) {
+    if (!hash) {
       resolve(false);
+      return;
+    }
+    // Handle plain text migration or legacy passwords
+    if (!hash.includes('$')) {
+      resolve(password === hash);
       return;
     }
     const [salt, key] = hash.split('$');
