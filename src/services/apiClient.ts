@@ -196,12 +196,12 @@ export const apiClient = {
     }
   },
 
-  async evaluateMirrorChoice(situation: string, choice: string) {
+  async evaluateMirrorChoice(situation: string, choice: string, stats: any) {
     try {
       const response = await fetch(`${API_URL}/ai/mirror/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ situation, choice })
+        body: JSON.stringify({ situation, choice, stats })
       });
       return handleResponse(response);
     } catch (error: any) {

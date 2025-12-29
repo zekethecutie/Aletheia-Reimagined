@@ -162,7 +162,17 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
     4. Return JSON ONLY: { "quests": [{ "text": "string", "difficulty": "E-S", "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number }, "duration_hours": number }] }`;
     
     const result = await askDeepSeek(system, "You are the Quest Weaver.");
-    const { quests: generatedQuests } = JSON.parse(result);
+    console.log('Quest Generation Result:', result);
+    let generatedQuests;
+    try {
+      // Handle potential extra text or markdown from AI
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : result);
+      generatedQuests = parsed.quests || [];
+    } catch (e) {
+      console.error('Failed to parse quests:', result);
+      return res.status(500).json({ error: 'Failed to manifest quests' });
+    }
     
     for (const q of generatedQuests) {
       const expiresAt = new Date();
@@ -174,6 +184,7 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
     }
     res.json({ success: true });
   } catch (error: any) {
+    console.error('Quest generation error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -239,13 +250,17 @@ app.get('/api/posts', async (req: Request, res: Response) => {
 app.post('/api/posts', async (req: Request, res: Response) => {
   try {
     const { author_id, content } = req.body;
+    if (!author_id || !content) {
+      return res.status(400).json({ error: 'Author and content required' });
+    }
     const result = await query(
       'INSERT INTO posts (author_id, content, liked_by) VALUES ($1, $2, $3) RETURNING *',
       [author_id, content, JSON.stringify([])]
     );
     res.json(result.rows[0]);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('Post creation error:', error);
+    res.status(500).json({ error: 'Transmission failed: ' + error.message });
   }
 });
 
@@ -273,15 +288,34 @@ app.post('/api/quests/:id/complete', async (req: Request, res: Response) => {
   }
 });
 
+// AI Quest Creation (Manual + AI assistance)
 app.post('/api/quests/create', async (req: Request, res: Response) => {
   try {
-    const { user_id, text, description, difficulty, xp_reward } = req.body;
+    const { user_id, text, description, difficulty } = req.body;
     if (!user_id || !text || !difficulty) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    const userResult = await query('SELECT stats FROM profiles WHERE id = $1', [user_id]);
+    const stats = userResult.rows[0].stats;
+
+    const system = `You are the Quest Arbiter. A user wants to do: "${text}". 
+    Evaluate its difficulty and assign an XP reward and Stat rewards for a ${stats.class} level ${stats.level}.
+    Return JSON ONLY: { "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number } }`;
+    
+    const result = await askDeepSeek(system, "You are the Quest Arbiter.");
+    let rewards;
+    try {
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      rewards = JSON.parse(jsonMatch ? jsonMatch[0] : result);
+    } catch (e) {
+      console.error('Failed to parse rewards:', result);
+      rewards = { xp_reward: 100, stat_reward: {} };
+    }
+
     await query(
       'INSERT INTO quests (user_id, text, description, difficulty, xp_reward, stat_reward) VALUES ($1, $2, $3, $4, $5, $6)',
-      [user_id, text, description || '', difficulty, xp_reward || 100, JSON.stringify({})]
+      [user_id, text, description || '', difficulty, rewards.xp_reward || 100, JSON.stringify(rewards.stat_reward || {})]
     );
     res.json({ success: true });
   } catch (error: any) {
@@ -361,13 +395,29 @@ app.post('/api/notifications/:id/read', async (req: Request, res: Response) => {
 app.post('/api/ai/mirror/scenario', async (req: Request, res: Response) => {
   try {
     const { stats } = req.body;
-    const prompt = `Generate a moral dilemma for a ${stats.class} character. Return JSON ONLY: { "situation": "string", "choiceA": "string", "choiceB": "string", "testedStat": "string" }`;
-    const response = await fetch('https://text.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?json=true');
-    const text = await response.text();
-    const jsonMatch = text.match(/\{.*\}/s);
-    if (jsonMatch) {
-      res.json(JSON.parse(jsonMatch[0]));
-    }
+    const system = `You are the Mirror of Aletheia. Generate a moral dilemma for a ${stats.class} level ${stats.level}. 
+    Return JSON ONLY: { "situation": "string", "choiceA": "string", "choiceB": "string", "testedStat": "string" }`;
+    const result = await askDeepSeek(system, "You are the Mirror.");
+    res.json(JSON.parse(result));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/mirror/evaluate', async (req: Request, res: Response) => {
+  try {
+    const { situation, choice, stats } = req.body;
+    const system = `Analyze this choice: "${choice}" in response to: "${situation}".
+    The user is a ${stats?.class || 'Seeker'} level ${stats?.level || 1}.
+    Evaluate the outcome and reward. Reward can be STAT_ONLY or ARTIFACT.
+    Return JSON ONLY: { 
+      "outcome": "string", 
+      "rewardType": "STAT_ONLY" | "ARTIFACT",
+      "statChange": { "intelligence": number, "physical": number, "spiritual": number, "social": number, "wealth": number },
+      "reward": { "name": "string", "description": "string", "icon": "string", "rarity": "COMMON" | "RARE" | "LEGENDARY" | "MYTHIC", "effect": "string" }
+    }`;
+    const result = await askDeepSeek(system, "You are the Arbiter of the Mirror.");
+    res.json(JSON.parse(result));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -385,7 +435,29 @@ app.post('/api/ai/advisor', async (req: Request, res: Response) => {
   }
 });
 
-// Identity Analysis
+// Profile Follow
+app.post('/api/profile/:id/follow', async (req: Request, res: Response) => {
+  try {
+    const { followerId } = req.body;
+    const targetId = req.params.id;
+    
+    const result = await query('SELECT following FROM profiles WHERE id = $1', [followerId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Follower not found' });
+    
+    let following = result.rows[0].following || [];
+    if (!following.includes(targetId)) {
+      following.push(targetId);
+      await query('UPDATE profiles SET following = $1 WHERE id = $2', [JSON.stringify(following), followerId]);
+    } else {
+      following = following.filter((id: string) => id !== targetId);
+      await query('UPDATE profiles SET following = $1 WHERE id = $2', [JSON.stringify(following), followerId]);
+    }
+    
+    res.json({ success: true, following });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 app.post('/api/ai/analyze-identity', async (req: Request, res: Response) => {
   try {
     const { manifesto } = req.body;

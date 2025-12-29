@@ -51,7 +51,14 @@ export default function App() {
     }
   };
 
-  useEffect(() => { initSession(); (window as any).setView = setView; }, []);
+  useEffect(() => { 
+    initSession(); 
+    (window as any).setView = setView; 
+    (window as any).setViewProfileId = (id: string) => {
+      setView(ViewState.VIEW_PROFILE);
+      (window as any).profileToView = id;
+    };
+  }, []);
 
   useEffect(() => {
     if (currentUser) {

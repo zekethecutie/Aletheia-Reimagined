@@ -1,11 +1,15 @@
 import OpenAI from "openai";
 
-const openrouter = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
-});
-
 const DEEPSEEK_MODEL = "deepseek/deepseek-chat";
+
+// Hardcoded for reliability as requested
+const OPENROUTER_API_KEY = process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "dummy";
+const OPENROUTER_BASE_URL = process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+
+const openrouter = new OpenAI({
+  baseURL: OPENROUTER_BASE_URL,
+  apiKey: OPENROUTER_API_KEY,
+});
 
 export async function askDeepSeek(prompt: string, system: string = "You are Aletheia, the supreme self-development architecture.") {
   try {

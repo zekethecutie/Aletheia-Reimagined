@@ -40,7 +40,7 @@ export const MirrorView: React.FC<MirrorViewProps> = ({ user, onUpdateUser }) =>
       if (!scenario) return;
       setLoading(true);
       try {
-        const result = await apiClient.evaluateMirrorChoice(scenario.situation, choice === 'A' ? scenario.choiceA : scenario.choiceB);
+        const result = await apiClient.evaluateMirrorChoice(scenario.situation, choice === 'A' ? scenario.choiceA : scenario.choiceB, user.stats);
         
         // If there's a reward, generate an image for it
         if (result.reward && !result.reward.imageUrl) {

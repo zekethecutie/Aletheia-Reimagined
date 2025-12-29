@@ -65,8 +65,12 @@ export const ExploreView: React.FC = () => {
 
   useEffect(() => { 
     (window as any).onViewProfile = (id: string) => {
-        (window as any).profileToView = id;
-        (window as any).setView?.(ViewState.VIEW_PROFILE);
+        if ((window as any).setViewProfileId) {
+            (window as any).setViewProfileId(id);
+        } else {
+            (window as any).profileToView = id;
+            (window as any).setView?.(ViewState.VIEW_PROFILE);
+        }
     };
     if (tab === 'HIERARCHY') fetchLeaderboard();
   }, [tab]);
@@ -108,9 +112,18 @@ export const ExploreView: React.FC = () => {
         </div>
       ) : (
         <div className="p-6 space-y-3 animate-fade-in">
-          {leaderboard.map((user: any, idx) => (
-            <div key={user.id} onClick={() => (window as any).setViewProfileId?.(user.id)} className="flex items-center gap-4 bg-slate-950 border border-slate-900 p-4 relative overflow-hidden group cursor-pointer animate-fade-in-up">
-               <div className={`text-xl font-black w-10 text-center ${idx < 3 ? 'text-gold' : 'text-slate-700'}`}>{idx + 1}</div>
+          {leaderboard.map((user: any, i) => (
+            <div key={user.id} onClick={() => (window as any).onViewProfile?.(user.id)} className={`flex items-center gap-4 bg-slate-950 border p-4 relative overflow-hidden group cursor-pointer animate-fade-in-up ${
+                i === 0 ? 'border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : 
+                i === 1 ? 'border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.1)]' : 
+                i === 2 ? 'border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-slate-900'
+            }`}>
+               <div className={`absolute top-0 left-0 w-1 h-full ${
+                    i === 0 ? 'bg-red-500' : 
+                    i === 1 ? 'bg-green-500' : 
+                    i === 2 ? 'bg-blue-500' : 'bg-slate-800'
+                }`}></div>
+               <div className={`text-xl font-black w-10 text-center ${i < 3 ? (i === 0 ? 'text-red-500' : i === 1 ? 'text-green-500' : 'text-blue-500') : 'text-slate-700'}`}>{i + 1}</div>
                <img src={user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${user.username}&backgroundColor=000000`} className="w-12 h-12 rounded-full border border-slate-800 bg-black" />
                <div className="flex-1">
                  <h4 className="text-white font-black uppercase text-sm">{user.username}</h4>
