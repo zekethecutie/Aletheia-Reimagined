@@ -109,8 +109,12 @@ export const apiClient = {
 
   async analyzeIdentity(manifesto: string) {
     try {
-      const { submitApplication } = await import('./geminiService');
-      return await submitApplication(manifesto);
+      const response = await fetch(`${API_URL}/ai/analyze-identity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifesto })
+      });
+      return handleResponse(response);
     } catch (error: any) {
       console.error('Identity analysis error:', error);
       throw error;
