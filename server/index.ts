@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { query, initializeDatabase } from './db';
 import { verifyPassword, hashPassword } from './auth';
+import { askDeepSeek, askDeepSeekText, analyzeIdentityDeepSeek, getCouncilFeedbackDeepSeek } from './deepseekService';
 
 dotenv.config();
 
@@ -133,9 +134,7 @@ app.post('/api/profile/:id/update', async (req: Request, res: Response) => {
 // AI Proxy - Mysterious Name
 app.post('/api/ai/mysterious-name', async (req: Request, res: Response) => {
   try {
-    const prompt = "Generate a single mysterious RPG-style name (e.g., Kaelen, Vyr, Sylas). Just the name.";
-    const response = await fetch('https://text.pollinations.ai/prompt/' + encodeURIComponent(prompt));
-    const name = await response.text();
+    const name = await askDeepSeekText("Generate a single mysterious RPG-style name (e.g., Kaelen, Vyr, Sylas). Just the name.", "You are the Naming Oracle.");
     res.json({ name: name.trim().split('\n')[0].replace(/[^a-zA-Z]/g, '') });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -162,24 +161,18 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
     3. DIFFICULTY: E (Easy) to S (Supreme).
     4. Return JSON ONLY: { "quests": [{ "text": "string", "difficulty": "E-S", "xp_reward": number, "stat_reward": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number }, "duration_hours": number }] }`;
     
-    const response = await fetch('https://text.pollinations.ai/prompt/' + encodeURIComponent(system) + '?json=true');
-    const text = await response.text();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const { quests: generatedQuests } = JSON.parse(jsonMatch[0]);
-      
-      for (const q of generatedQuests) {
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + (q.duration_hours || 24));
-        await query(
-          'INSERT INTO quests (user_id, text, difficulty, xp_reward, stat_reward, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
-          [userId, q.text, q.difficulty, q.xp_reward, JSON.stringify(q.stat_reward), expiresAt]
-        );
-      }
-      res.json({ success: true });
-    } else {
-      res.status(500).json({ error: 'Generation failed' });
+    const result = await askDeepSeek(system, "You are the Quest Weaver.");
+    const { quests: generatedQuests } = JSON.parse(result);
+    
+    for (const q of generatedQuests) {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + (q.duration_hours || 24));
+      await query(
+        'INSERT INTO quests (user_id, text, difficulty, xp_reward, stat_reward, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [userId, q.text, q.difficulty, q.xp_reward, JSON.stringify(q.stat_reward), expiresAt]
+      );
     }
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -189,20 +182,15 @@ app.post('/api/ai/quest/generate', async (req: Request, res: Response) => {
 app.post('/api/achievements/calculate', async (req: Request, res: Response) => {
   try {
     const { text, userId, stats } = req.body;
-    const prompt = `You are the Chronicler of Aletheia. Analyze this real-world achievement: "${text}". 
+    const system = `You are the Chronicler of Aletheia. Analyze this real-world achievement: "${text}". 
     Evaluate its impact on a ${stats.class} at level ${stats.level}.
     Return JSON ONLY: { "xpGained": number, "statsIncreased": { "physical": number, "intelligence": number, "spiritual": number, "social": number, "wealth": number }, "systemMessage": "string" }`;
-    const response = await fetch('https://text.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?json=true');
-    const resText = await response.text();
-    const jsonMatch = resText.match(/\{.*\}/s);
-    if (jsonMatch) {
-      const result = JSON.parse(jsonMatch[0]);
-      await query('INSERT INTO achievements (user_id, title, description, icon) VALUES ($1, $2, $3, $4)', 
-        [userId, "Great Feat Logged", text, "🏆"]);
-      res.json(result);
-    } else {
-      res.status(500).json({ error: 'Evaluation failed' });
-    }
+    
+    const result = await askDeepSeek(system, "You are the Chronicler.");
+    const data = JSON.parse(result);
+    await query('INSERT INTO achievements (user_id, title, description, icon) VALUES ($1, $2, $3, $4)', 
+      [userId, "Great Feat Logged", text, "🏆"]);
+    res.json(data);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -330,12 +318,21 @@ app.post('/api/habits/track', async (req: Request, res: Response) => {
     const habitResult = await query('SELECT * FROM habits WHERE id = $1 AND user_id = $2', [habit_id, user_id]);
     if (habitResult.rows.length === 0) return res.status(404).json({ error: 'Habit not found' });
 
-    const habit = habitResult.rows[0];
-    const newStreak = (habit.streak || 0) + 1;
-    const xpReward = 50 * (1 + Math.floor(newStreak / 7));
+    const userResult = await query('SELECT stats FROM profiles WHERE id = $1', [user_id]);
+    const userStats = userResult.rows[0].stats;
 
+    const habit = habitResult.rows[0];
+    const verdict = await getCouncilFeedbackDeepSeek(habit.name, action, userStats);
+
+    const newStreak = (habit.streak || 0) + 1;
     await query('UPDATE habits SET streak = $1 WHERE id = $2', [newStreak, habit_id]);
-    res.json({ success: true, feedback: `Great work! ${action}`, xp: xpReward });
+    
+    res.json({ 
+      success: true, 
+      feedback: verdict.feedback, 
+      xp: verdict.xp, 
+      stat_reward: verdict.stat_reward 
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -371,6 +368,29 @@ app.post('/api/ai/mirror/scenario', async (req: Request, res: Response) => {
     if (jsonMatch) {
       res.json(JSON.parse(jsonMatch[0]));
     }
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Advisor/Consultation Route
+app.post('/api/ai/advisor', async (req: Request, res: Response) => {
+  try {
+    const { advisor, message, userId } = req.body;
+    const system = `You are the ${advisor} of Aletheia. Provide guidance to the user. Be concise and maintain your character.`;
+    const text = await askDeepSeekText(message, system);
+    res.json({ text });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Identity Analysis
+app.post('/api/ai/analyze-identity', async (req: Request, res: Response) => {
+  try {
+    const { manifesto } = req.body;
+    const result = await analyzeIdentityDeepSeek(manifesto);
+    res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
